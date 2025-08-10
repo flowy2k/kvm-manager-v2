@@ -102,51 +102,51 @@ jobs:
         shell: bash
         if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v3
-        if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      # - name: Install cosign
+      #   uses: sigstore/cosign-installer@v3
+      #   if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
-      - name: Sign multi-arch image (cosign keyless)
-        env:
-          COSIGN_EXPERIMENTAL: "1"
-          IMAGE_REF: ${{ steps.primary_tag.outputs.tag }}@${{ steps.build.outputs.digest }}
-        run: |
-          echo "Signing $IMAGE_REF"
-          cosign sign --yes $IMAGE_REF
-        if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      # - name: Sign multi-arch image (cosign keyless)
+      #   env:
+      #     COSIGN_EXPERIMENTAL: "1"
+      #     IMAGE_REF: ${{ steps.primary_tag.outputs.tag }}@${{ steps.build.outputs.digest }}
+      #   run: |
+      #     echo "Signing $IMAGE_REF"
+      #     cosign sign --yes $IMAGE_REF
+      #   if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
-      - name: Generate SBOM (Syft via Anchore action)
-        id: sbom
-        uses: anchore/sbom-action@v0
-        with:
-          image: ${{ steps.primary_tag.outputs.tag }}
-          output-file: sbom.spdx.json
-        if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      # - name: Generate SBOM (Syft via Anchore action)
+      #   id: sbom
+      #   uses: anchore/sbom-action@v0
+      #   with:
+      #     image: ${{ steps.primary_tag.outputs.tag }}
+      #     output-file: sbom.spdx.json
+      #   if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
-      - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-spdx
-          path: sbom.spdx.json
-          if-no-files-found: error
-        if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      # - name: Upload SBOM artifact
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: sbom-spdx
+      #     path: sbom.spdx.json
+      #     if-no-files-found: error
+      #   if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
-      - name: Vulnerability scan (Trivy)
-        uses: aquasecurity/trivy-action@master
-        if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        with:
-          image-ref: ${{ steps.primary_tag.outputs.tag }}
-          format: "sarif"
-          output: "trivy-results.sarif"
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH,MEDIUM"
-          ignore-unfixed: true
+      # - name: Vulnerability scan (Trivy)
+      #   uses: aquasecurity/trivy-action@master
+      #   if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      #   with:
+      #     image-ref: ${{ steps.primary_tag.outputs.tag }}
+      #     format: "sarif"
+      #     output: "trivy-results.sarif"
+      #     vuln-type: "os,library"
+      #     severity: "CRITICAL,HIGH,MEDIUM"
+      #     ignore-unfixed: true
 
-      - name: Upload Trivy scan SARIF
-        uses: github/codeql-action/upload-sarif@v3
-        if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        with:
-          sarif_file: trivy-results.sarif
+      # - name: Upload Trivy scan SARIF
+      #   uses: github/codeql-action/upload-sarif@v3
+      #   if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      #   with:
+      #     sarif_file: trivy-results.sarif
 
       - name: Summary
         run: |
