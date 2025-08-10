@@ -55,7 +55,7 @@ docker run -d --name kvm-manager -p 3000:3000 -p 8081:8081 --device /dev/ttyUSB0
 The Docker build now expects this structure:
 
 ```
-/workspaces/kvm-manager/
+/workspaces/kvm-manager-v2/
 ├── pyproject.toml          # Python project definition (ROOT)
 ├── uv.lock                 # Python dependencies lock file
 ├── Dockerfile              # Multi-stage Docker build
