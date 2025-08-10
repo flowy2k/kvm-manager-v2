@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-950 text-gray-100">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>KVM Manager</title>
+    <meta name="description" content="Modern KVM over IP orchestration dashboard" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui'] },
+                    colors: {
+                        brand: {
+                            50:'#f0f9ff',100:'#e0f2fe',200:'#bae6fd',300:'#7dd3fc',400:'#38bdf8',500:'#0ea5e9',600:'#0284c7',700:'#0369a1',800:'#075985',900:'#0c4a6e'
+                        }
+                    },
+                    animation:{ 'pulse-slow':'pulse 3s ease-in-out infinite' }
+                }
+            }
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/js/all.min.js" defer></script>
+    <style>
+        ::-webkit-scrollbar{width:10px;height:10px}
+        ::-webkit-scrollbar-track{background:#0f172a}
+        ::-webkit-scrollbar-thumb{background:#334155;border-radius:6px}
+        ::-webkit-scrollbar-thumb:hover{background:#475569}
+        .glass{backdrop-filter:blur(20px);background:linear-gradient(140deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02));border:1px solid rgba(255,255,255,0.07)}
+        .gradient-border{position:relative}
+        .gradient-border:before{content:"";position:absolute;inset:0;padding:1px;border-radius:inherit;background:linear-gradient(90deg,#0ea5e9,#6366f1,#0ea5e9);mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;opacity:.5}
+        .port-btn{position:relative;display:flex;flex-direction:column;align-items:flex-start;padding:1rem;border-radius:0.75rem;border:1px solid rgba(255,255,255,0.1);background:linear-gradient(to bottom right,rgba(30,41,59,0.6),rgba(15,23,42,0.6));transition:all .25s ease;box-shadow:0 4px 6px -1px rgba(0,0,0,0.4),0 2px 4px -2px rgba(0,0,0,0.4);overflow:hidden}
+        .port-btn:hover{background:linear-gradient(to bottom right,rgba(30,41,59,0.8),rgba(15,23,42,0.8));box-shadow:0 10px 15px -3px rgba(0,0,0,0.5),0 4px 6px -4px rgba(0,0,0,0.5)}
+        .port-btn.active{box-shadow:0 0 0 2px #38bdf8,0 10px 15px -3px rgba(14,165,233,0.3),0 4px 6px -4px rgba(14,165,233,0.3)}
+        .port-btn .port-name{font-size:.875rem;font-weight:600;color:#fff;letter-spacing:.02em}
+    .port-btn .port-number{margin-top:.25rem;font-size:.7rem;text-transform:uppercase;letter-spacing:.15em;font-weight:500;color:#7dd3fc}
+    /* Theme system */
+    :root.theme-light { --bg: #f8fafc; --panel:#ffffffcc; --panel-border:rgba(0,0,0,0.08); --text:#0f172a; --subtext:#475569; --accent:#0ea5e9; }
+    :root.theme-dark { --bg:#0c111b; --panel:rgba(17,24,39,0.7); --panel-border:rgba(255,255,255,0.08); --text:#f1f5f9; --subtext:#94a3b8; --accent:#38bdf8; }
+    :root.theme-blue { --bg:#061018; --panel:rgba(10,26,40,0.72); --panel-border:rgba(56,189,248,0.25); --text:#e6f6ff; --subtext:#7cc4e4; --accent:#3bb4ff; }
+    .theme-light body { background:var(--bg); color:var(--text); }
+    .theme-light .glass { background:linear-gradient(140deg,#ffffffee,#ffffffd0); backdrop-filter:blur(18px); border-color:var(--panel-border); }
+    .theme-light .gradient-border:before { background:linear-gradient(90deg,#0ea5e9,#6366f1,#0ea5e9); opacity:.35 }
+    .theme-light header { background:linear-gradient(90deg,#e2e8f0e6,#ffffffcc); color:var(--text); }
+    .theme-light .port-btn { background:linear-gradient(to bottom right,#ffffff,#f1f5f9); color:var(--text); border-color:#e2e8f0; }
+    .theme-light .port-btn .port-number { color: var(--accent); }
+    .theme-blue body { background:radial-gradient(circle at 20% 20%,#07344b,#030b12 60%); }
+    .theme-blue .glass { background:linear-gradient(145deg,rgba(9,30,46,0.85),rgba(5,18,28,0.7)); border-color:var(--panel-border); }
+    .theme-blue .port-btn { background:linear-gradient(135deg,rgba(17,46,69,0.65),rgba(7,20,30,0.65)); }
+    .theme-blue .port-btn.active { box-shadow:0 0 0 2px var(--accent),0 8px 18px -4px rgba(59,180,255,0.35); }
+    .theme-blue header { background:linear-gradient(90deg,#062130cc,#07344bcc,#0b4d72cc); }
+    .theme-light .text-slate-400 { color: var(--subtext) !important; }
+    .theme-light .text-slate-300 { color: var(--text) !important; }
+    .theme-light .text-slate-200 { color: var(--text) !important; }
+    .theme-light .bg-slate-900, .theme-light .bg-slate-800\/40 { background:#ffffff !important; }
+    .theme-light .kvm-frame-wrapper { border-color:#e2e8f0; }
+    /* KVM iframe visibility fixes */
+    .kvm-frame-wrapper{position:relative;width:100%;background:#000;border-top:1px solid rgba(255,255,255,0.05);border-bottom:1px solid rgba(255,255,255,0.05);min-height:900px;}
+    @media (max-width: 768px){.kvm-frame-wrapper{min-height:420px;}}
+    #kvmFrame{position:absolute;inset:0;width:100%;height:100%;display:block;border:0;background:#000;z-index:10;}
+    #emptyStateOverlay{z-index:20;}
+    #emptyStateOverlay.hidden{display:none!important;}
+    /* Visual debug helper (toggle via DevTools if needed) */
+    /* .debug-outline * { outline:1px dashed rgba(0,255,255,0.25); } */
+    </style>
+</head>
+<body class="h-full flex flex-col">
+    <header class="w-full border-b border-white/10 bg-gradient-to-r from-slate-900/90 via-slate-900/70 to-slate-900/90 backdrop-blur supports-[backdrop-filter]:bg-slate-900/60 sticky top-0 z-40">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center gap-6">
+            <div class="flex items-center gap-3">
+                <div class="h-10 w-10 rounded-xl bg-gradient-to-br from-brand-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-brand-500/30"><i class="fa-solid fa-network-wired text-white text-lg"></i></div>
+                <div>
+                    <h1 class="text-xl font-bold leading-tight bg-gradient-to-r from-brand-300 via-white to-indigo-300 bg-clip-text text-transparent tracking-tight">KVM Manager</h1>
+                    <p class="text-[11px] text-slate-400 -mt-0.5">Unified console orchestration</p>
+                </div>
+            </div>
+            <div class="ml-auto flex items-center gap-3">
+                <button onclick="openSettings()" class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-brand-500 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow hover:from-brand-400 hover:to-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-400 ring-offset-slate-900 transition">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>Settings</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-8">
+        <!-- Status + Ports -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Status Panel -->
+            <div class="lg:col-span-1 space-y-6">
+                <div class="glass rounded-2xl p-6 gradient-border relative overflow-hidden">
+                    <div class="absolute -top-10 -right-10 h-40 w-40 bg-brand-500/10 rounded-full blur-2xl"></div>
+                    <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2 mb-4"><i class="fa-solid fa-circle-nodes text-brand-400"></i>Status</h2>
+                    <dl class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <dt class="text-xs font-medium text-slate-400">Current Port</dt>
+                            <dd id="currentPort" class="text-sm font-semibold text-slate-200">None</dd>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <dt class="text-xs font-medium text-slate-400">Serial Port</dt>
+                            <dd id="currentSerial" class="text-sm font-semibold text-slate-200">Loading...</dd>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <dt class="text-xs font-medium text-slate-400">API Status</dt>
+                            <dd id="apiStatus" class="text-sm font-semibold text-amber-300">Connecting...</dd>
+                        </div>
+                    </dl>
+                </div>
+
+                <!-- Legend / Helper -->
+                <div class="glass rounded-2xl p-5">
+                    <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Legend</h3>
+                    <ul class="text-[11px] space-y-1 text-slate-400">
+                        <li><span class="inline-block w-2 h-2 rounded-full bg-brand-400 mr-2"></span>Active Port</li>
+                        <li><span class="inline-block w-2 h-2 rounded-full bg-slate-500 mr-2"></span>Available Port</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Port Grid -->
+            <div class="lg:col-span-2 glass rounded-2xl p-6 gradient-border relative overflow-hidden">
+                <div class="absolute -bottom-16 -left-16 h-72 w-72 bg-indigo-500/10 rounded-full blur-2xl"></div>
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2"><i class="fa-solid fa-plug text-brand-400"></i>KVM Ports</h2>
+                    <button onclick="clearStorageForTesting()" class="text-[10px] font-medium text-slate-500 hover:text-brand-300 transition">Reset Local Data</button>
+                </div>
+                <div id="portGrid" class="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5"></div>
+            </div>
+        </section>
+
+        <!-- Display -->
+        <section class="glass rounded-2xl p-0 gradient-border overflow-hidden">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-white/10">
+                <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2"><i class="fa-solid fa-display text-brand-400"></i>KVM Display</h2>
+                <div class="flex items-center gap-2 text-[10px] text-slate-500">
+                    <span class="hidden sm:inline">Interactive embedded console</span>
+                </div>
+            </div>
+            <div class="kvm-frame-wrapper">
+                <iframe id="kvmFrame" src="" allowfullscreen referrerpolicy="no-referrer" loading="lazy"></iframe>
+                <div class="absolute inset-0 flex items-center justify-center pointer-events-none" id="emptyStateOverlay">
+                    <div class="text-center max-w-md px-6">
+                        <div class="h-16 w-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-brand-500/20 to-indigo-500/20 flex items-center justify-center text-brand-300"><i class="fa-solid fa-display text-2xl"></i></div>
+                        <h3 class="text-lg font-semibold mb-2 text-slate-200">No KVM UI URL Configured</h3>
+                        <p class="text-sm text-slate-400 leading-relaxed">Open settings and set the KVM UI URL to embed your remote console session inside this dashboard.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal -->
+    <div id="settingsModal" class="hidden fixed inset-0 z-50 items-start justify-center pt-20 px-4 pb-10 backdrop-blur-sm bg-slate-950/70">
+        <div class="w-full max-w-4xl bg-slate-900/90 rounded-2xl shadow-2xl ring-1 ring-white/10 overflow-hidden flex flex-col max-h-[80vh]">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-gradient-to-r from-slate-900 to-slate-800/60">
+                <div class="flex items-center gap-3">
+                    <div class="h-10 w-10 rounded-xl bg-gradient-to-br from-brand-500 to-indigo-600 flex items-center justify-center text-white shadow-md"><i class="fa-solid fa-sliders"></i></div>
+                    <div>
+                        <h2 class="text-base font-bold tracking-tight">Settings</h2>
+                        <p class="text-[11px] text-slate-400 -mt-0.5">Environment & personalization</p>
+                    </div>
+                </div>
+                <button onclick="closeSettings()" class="text-slate-400 hover:text-slate-200 transition p-2 rounded-lg hover:bg-slate-700/40"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="overflow-y-auto px-6 py-6 space-y-10 text-sm">
+                <div class="grid md:grid-cols-2 gap-10">
+                    <div class="space-y-6">
+                        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">API Configuration</h3>
+                        <div class="space-y-4">
+                            <label class="block">
+                                <span class="block text-xs font-medium text-slate-400 mb-1">KVM Manager API URL</span>
+                                <input id="apiHostname" type="text" class="w-full rounded-lg bg-slate-800/70 border border-slate-700/70 focus:border-brand-400 focus:ring-brand-400 text-slate-200 placeholder-slate-500" placeholder="https://rack-kvm-manager.flowy2k.com/api" />
+                                <small class="text-[10px] text-slate-500">Express server API endpoint (usually localhost:3000/api)</small>
+                            </label>
+                            <label class="block">
+                                <span class="block text-xs font-medium text-slate-400 mb-1">KVM UI URL</span>
+                                <input id="kvmUiUrl" type="text" class="w-full rounded-lg bg-slate-800/70 border border-slate-700/70 focus:border-brand-400 focus:ring-brand-400 text-slate-200 placeholder-slate-500" placeholder="https://rack-kvm.flowy2k.com/" />
+                                <small class="text-[10px] text-slate-500">URL to display in the KVM viewer iframe</small>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="space-y-6">
+                        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Theme</h3>
+                        <div class="space-y-4">
+                            <label class="block">
+                                <span class="block text-xs font-medium text-slate-400 mb-1">Color Theme</span>
+                                <select id="theme" class="w-full rounded-lg bg-slate-800/70 border border-slate-700/70 focus:border-brand-400 focus:ring-brand-400 text-slate-200">
+                                    <option value="light">Light Theme</option>
+                                    <option value="dark">Dark Theme</option>
+                                    <option value="blue">Blue Theme</option>
+                                </select>
+                                <small class="text-[10px] text-slate-500">Choose your preferred color scheme</small>
+                            </label>
+                            <label class="block">
+                                <span class="block text-xs font-medium text-slate-400 mb-1">Default Serial Port</span>
+                                <select id="serialPort" class="w-full rounded-lg bg-slate-800/70 border border-slate-700/70 focus:border-brand-400 focus:ring-brand-400 text-slate-200">
+                                    <option value="">Loading...</option>
+                                </select>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <!-- Port Names -->
+                <div class="space-y-4">
+                    <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Port Names</h3>
+                    <div id="portNames" class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-white/10 bg-slate-800/40 flex items-center justify-end gap-3">
+                <button onclick="closeSettings()" class="px-4 py-2 text-sm font-medium rounded-lg bg-slate-700/60 hover:bg-slate-600/50 text-slate-200 transition">Cancel</button>
+                <button onclick="saveSettings()" class="px-5 py-2.5 text-sm font-semibold rounded-lg bg-gradient-to-r from-brand-500 to-indigo-600 hover:from-brand-400 hover:to-indigo-500 text-white shadow-md shadow-brand-500/30 transition">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="hidden fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-sm flex flex-col items-center justify-center gap-6">
+        <div class="flex flex-col items-center gap-4">
+            <div class="h-16 w-16 rounded-2xl bg-gradient-to-br from-brand-500 to-indigo-600 animate-pulse flex items-center justify-center shadow-lg shadow-brand-500/40">
+                <i class="fa-solid fa-rotate text-white text-2xl animate-spin"></i>
+            </div>
+            <p class="text-sm font-medium tracking-wide text-slate-300">Switching KVM port...</p>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="notification" class="fixed bottom-6 right-6 z-50 hidden"></div>
+
+    <script>
+        // Re-implement notification styling with Tailwind utility injection
+        (function(){
+            const n = document.getElementById('notification');
+            if(!n) return;
+            n.show = (msg, type='success') => {
+                const colorMap = {
+                    success: 'from-emerald-500 to-emerald-600',
+                    error: 'from-rose-500 to-rose-600',
+                    warning: 'from-amber-500 to-amber-600',
+                    info: 'from-brand-500 to-indigo-600'
+                };
+                n.className = `fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl shadow-black/40 text-sm font-medium text-white bg-gradient-to-r ${colorMap[type]||colorMap.info} backdrop-blur flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300`;
+                n.innerHTML = `<i class='fa-solid ${type==='success'?'fa-circle-check':type==='error'?'fa-triangle-exclamation':type==='warning'?'fa-exclamation-circle':'fa-circle-info'} text-white/90'></i><span>${msg}</span>`;
+                n.style.display='flex';
+                clearTimeout(n._t); n._t=setTimeout(()=>{n.style.display='none';},4000);
+            };
+        })();
+    </script>
+
+    <!-- Preserve ENV injection -->
+    <script>
+        window.ENV = { API_HOSTNAME: 'https://rack-kvm-manager.flowy2k.com/api', KVM_UI_URL: 'https://rack-kvm.flowy2k.com/' };
+    </script>
+
+    <script src="script.js"></script>
+    <script>
+        // Augment existing functions to integrate new Tailwind UI behavior
+        const origShowNotification = window.kvmManager?.showNotification;
+        // Mutation observer for iframe empty state
+        const iframe = document.getElementById('kvmFrame');
+        const overlay = document.getElementById('emptyStateOverlay');
+        function toggleOverlay(){
+            if(!iframe || !overlay) return; overlay.classList.toggle('hidden', !!iframe.src); }
+        const obs = new MutationObserver(toggleOverlay); if(iframe){ obs.observe(iframe,{attributes:true,attributeFilter:['src']}); }
+        toggleOverlay();
+    </script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      push_image:
+        description: "Set to true to push image even on manual run"
+        type: boolean
+        required: false
+        default: false
+
+env:
+  IMAGE_NAME: kvm-manager
+  REGISTRY: ghcr.io
+  # IMAGE_REGISTRY can be overridden via secrets or env if pushing elsewhere.
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # needed for GHCR push
+      id-token: write # needed for keyless cosign signing
+      security-events: write # allow SARIF upload from vulnerability scan
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Set up QEMU (multi-arch)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: >-
+          (github.event_name != 'pull_request') &&
+          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: ${{ (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Show image digest
+        run: echo "Image digest ${{ steps.build.outputs.digest }}"
+
+      - name: Conditional manual push override
+        if: >-
+          github.event_name == 'workflow_dispatch' &&
+          inputs.push_image == true &&
+          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Derive primary image tag
+        id: primary_tag
+        run: |
+          echo "tags multiline:"
+          echo "${{ steps.meta.outputs.tags }}"
+          first_tag=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          echo "Using primary tag: $first_tag"
+          echo "tag=$first_tag" >> $GITHUB_OUTPUT
+        shell: bash
+        if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+      - name: Sign multi-arch image (cosign keyless)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+          IMAGE_REF: ${{ steps.primary_tag.outputs.tag }}@${{ steps.build.outputs.digest }}
+        run: |
+          echo "Signing $IMAGE_REF"
+          cosign sign --yes $IMAGE_REF
+        if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+      - name: Generate SBOM (Syft via Anchore action)
+        id: sbom
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.primary_tag.outputs.tag }}
+          output-file: sbom.spdx.json
+        if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-spdx
+          path: sbom.spdx.json
+          if-no-files-found: error
+        if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+      - name: Vulnerability scan (Trivy)
+        uses: aquasecurity/trivy-action@master
+        if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        with:
+          image-ref: ${{ steps.primary_tag.outputs.tag }}
+          format: "sarif"
+          output: "trivy-results.sarif"
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH,MEDIUM"
+          ignore-unfixed: true
+
+      - name: Upload Trivy scan SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Summary
+        run: |
+          echo "Build complete" >> $GITHUB_STEP_SUMMARY
+          echo "Image(s): ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "Digest: ${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
+          echo "Primary Tag: ${{ steps.primary_tag.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "Signed (cosign): yes" >> $GITHUB_STEP_SUMMARY
+          echo "SBOM: sbom.spdx.json" >> $GITHUB_STEP_SUMMARY
+          echo "Trivy scan: trivy-results.sarif" >> $GITHUB_STEP_SUMMARY

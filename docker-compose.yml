@@ -1,0 +1,78 @@
+services:
+  kvm-manager:
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    image: kvm-manager:latest
+    container_name: kvm-manager
+    ports:
+      - "${KVM_FRONTEND_PORT:-3000}:3000" # Express frontend
+      - "${KVM_BACKEND_PORT:-8081}:8081" # Python backend API (changed from 8081 to 8081)
+    devices:
+      - "/dev/ttyUSB0:/dev/ttyUSB0" # USB-to-Serial adapter
+      - "/dev/ttyUSB1:/dev/ttyUSB1" # Additional serial ports if needed
+    privileged: true # Required for serial device access
+    volumes:
+      - /dev:/dev # Mount device directory for serial access
+      - kvm-data:/app/data # Persistent data volume
+    environment:
+      - NODE_ENV=production
+      - PYTHONPATH=/app/backend
+      - UV_CACHE_DIR=/app/.uv-cache
+      # Frontend Environment Variables
+      - API_HOSTNAME=${API_HOSTNAME:-http://localhost:8081/api}
+      - KVM_UI_URL=${KVM_UI_URL:-}
+      - KVM_API_URL=${KVM_API_URL:-http://localhost:8081/api}
+      - KVM_WEB_UI_URL=${KVM_WEB_UI_URL:-}
+      # KVM Port Friendly Names Configuration
+      - KVM_PORT_1_NAME=${KVM_PORT_1_NAME:-Server-1}
+      - KVM_PORT_2_NAME=${KVM_PORT_2_NAME:-Server-2}
+      - KVM_PORT_3_NAME=${KVM_PORT_3_NAME:-Server-3}
+      - KVM_PORT_4_NAME=${KVM_PORT_4_NAME:-Server-4}
+      - KVM_PORT_5_NAME=${KVM_PORT_5_NAME:-Server-5}
+      - KVM_PORT_6_NAME=${KVM_PORT_6_NAME:-Server-6}
+      - KVM_PORT_7_NAME=${KVM_PORT_7_NAME:-Server-7}
+      - KVM_PORT_8_NAME=${KVM_PORT_8_NAME:-Server-8}
+      - KVM_PORT_9_NAME=${KVM_PORT_9_NAME:-Server-9}
+      - KVM_PORT_10_NAME=${KVM_PORT_10_NAME:-Server-10}
+      - KVM_PORT_11_NAME=${KVM_PORT_11_NAME:-Server-11}
+      - KVM_PORT_12_NAME=${KVM_PORT_12_NAME:-Server-12}
+      - KVM_PORT_13_NAME=${KVM_PORT_13_NAME:-Server-13}
+      - KVM_PORT_14_NAME=${KVM_PORT_14_NAME:-Server-14}
+      - KVM_PORT_15_NAME=${KVM_PORT_15_NAME:-Server-15}
+      - KVM_PORT_16_NAME=${KVM_PORT_16_NAME:-Server-16}
+    restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 40s
+  #   networks:
+  #     - kvm-network
+
+  # # Optional: Nginx reverse proxy for production
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: kvm-nginx
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./ssl:/etc/nginx/ssl:ro # SSL certificates if using HTTPS
+  #   depends_on:
+  #     - kvm-manager
+  #   restart: unless-stopped
+  #   networks:
+  #     - kvm-network
+  #   profiles:
+  #     - production # Only start with --profile production
+
+volumes:
+  kvm-data:
+    driver: local
+
+networks:
+  kvm-network:
+    driver: bridge

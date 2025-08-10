@@ -1,0 +1,387 @@
+#!/bin/bash
+
+# KVM Manager Production URL Configuration Script
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+echo -e "${BLUE}🌐 KVM Manager URL Configuration${NC}"
+echo -e "${BLUE}================================${NC}"
+
+# Function to validate URL
+validate_url() {
+    local url="$1"
+    if [[ -z "$url" ]]; then
+        return 0  # Empty URL is valid (optional)
+    fi
+    
+    if [[ "$url" =~ ^https?://[a-zA-Z0-9.-]+([:/][a-zA-Z0-9./_-]*)?$ ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to get current configuration
+show_current_config() {
+    echo -e "\n${CYAN}📋 Current URL Configuration:${NC}"
+    echo -e "${CYAN}============================${NC}"
+    
+    if [ -f ".env" ]; then
+        echo -e "\n${YELLOW}Frontend URLs:${NC}"
+        API_HOSTNAME=$(grep "^API_HOSTNAME=" .env | cut -d'=' -f2 || echo "http://localhost:8081/api")
+        KVM_UI_URL=$(grep "^KVM_UI_URL=" .env | cut -d'=' -f2 || echo "")
+        
+        echo -e "  API Hostname: ${GREEN}${API_HOSTNAME}${NC}"
+        echo -e "  KVM UI URL:   ${GREEN}${KVM_UI_URL:-"(not set)"}${NC}"
+    else
+        echo -e "${YELLOW}⚠️  No .env file found. Using defaults.${NC}"
+        echo -e "  API Hostname: ${GREEN}http://localhost:8081/api${NC}"
+        echo -e "  KVM UI URL:   ${GREEN}(not set)${NC}"
+    fi
+}
+
+# Function to configure URLs interactively
+configure_urls() {
+    echo -e "\n${BLUE}🔧 Configure KVM Manager URLs${NC}"
+    echo -e "${BLUE}=============================${NC}"
+    echo
+    echo -e "${YELLOW}Enter the URLs for your KVM Manager deployment.${NC}"
+    echo -e "${YELLOW}Leave empty to keep current values.${NC}"
+    echo
+    
+    # Get current values
+    current_api=$(grep "^API_HOSTNAME=" .env 2>/dev/null | cut -d'=' -f2 || echo "http://localhost:8081/api")
+    current_ui=$(grep "^KVM_UI_URL=" .env 2>/dev/null | cut -d'=' -f2 || echo "")
+    
+    # API Hostname
+    echo -e "${CYAN}🔗 API Hostname${NC}"
+    echo -e "Current: ${GREEN}${current_api}${NC}"
+    echo -e "Example: https://kvm-api.yourdomain.com/api"
+    read -p "Enter new API hostname: " new_api
+    
+    if [ -n "$new_api" ]; then
+        if validate_url "$new_api"; then
+            api_hostname="$new_api"
+        else
+            echo -e "${RED}❌ Invalid URL format${NC}"
+            return 1
+        fi
+    else
+        api_hostname="$current_api"
+    fi
+    
+    # KVM UI URL
+    echo
+    echo -e "${CYAN}🖥️  KVM UI URL${NC}"
+    echo -e "Current: ${GREEN}${current_ui:-"(not set)"}${NC}"
+    echo -e "Example: https://kvm-ui.yourdomain.com/"
+    echo -e "Note: This is optional - leave empty if you don't have a separate KVM UI"
+    read -p "Enter KVM UI URL: " new_ui
+    
+    if [ -n "$new_ui" ]; then
+        if validate_url "$new_ui"; then
+            kvm_ui_url="$new_ui"
+        else
+            echo -e "${RED}❌ Invalid URL format${NC}"
+            return 1
+        fi
+    else
+        kvm_ui_url="$current_ui"
+    fi
+    
+    # Confirmation
+    echo
+    echo -e "${YELLOW}📋 Configuration Summary:${NC}"
+    echo -e "  API Hostname: ${GREEN}${api_hostname}${NC}"
+    echo -e "  KVM UI URL:   ${GREEN}${kvm_ui_url:-"(not set)"}${NC}"
+    echo
+    
+    read -p "Save this configuration? (Y/n): " confirm
+    
+    if [[ ! "$confirm" =~ ^[Nn]$ ]]; then
+        save_configuration "$api_hostname" "$kvm_ui_url"
+        return 0
+    else
+        echo -e "${YELLOW}❌ Configuration not saved${NC}"
+        return 1
+    fi
+}
+
+# Function to save configuration
+save_configuration() {
+    local api_hostname="$1"
+    local kvm_ui_url="$2"
+    
+    echo -e "\n${BLUE}💾 Saving Configuration...${NC}"
+    
+    # Create backup if .env exists
+    if [ -f ".env" ]; then
+        cp .env .env.backup.$(date +%Y%m%d_%H%M%S)
+        echo -e "${YELLOW}📋 Backup created${NC}"
+    fi
+    
+    # Update or create .env file
+    if [ -f ".env" ]; then
+        # Update existing .env
+        sed -i "s|^API_HOSTNAME=.*|API_HOSTNAME=${api_hostname}|" .env
+        sed -i "s|^KVM_UI_URL=.*|KVM_UI_URL=${kvm_ui_url}|" .env
+        sed -i "s|^KVM_API_URL=.*|KVM_API_URL=${api_hostname}|" .env
+        sed -i "s|^KVM_WEB_UI_URL=.*|KVM_WEB_UI_URL=${kvm_ui_url}|" .env
+        
+        # Add lines if they don't exist
+        if ! grep -q "^API_HOSTNAME=" .env; then
+            echo "API_HOSTNAME=${api_hostname}" >> .env
+        fi
+        if ! grep -q "^KVM_UI_URL=" .env; then
+            echo "KVM_UI_URL=${kvm_ui_url}" >> .env
+        fi
+        if ! grep -q "^KVM_API_URL=" .env; then
+            echo "KVM_API_URL=${api_hostname}" >> .env
+        fi
+        if ! grep -q "^KVM_WEB_UI_URL=" .env; then
+            echo "KVM_WEB_UI_URL=${kvm_ui_url}" >> .env
+        fi
+    else
+        # Create new .env file
+        cat > .env << EOF
+# KVM Manager Environment Configuration
+# Generated by configure-urls.sh on $(date)
+
+# Port Configuration
+KVM_FRONTEND_PORT=3000
+KVM_BACKEND_PORT=8081
+
+# Frontend Environment Variables
+API_HOSTNAME=${api_hostname}
+KVM_UI_URL=${kvm_ui_url}
+KVM_API_URL=${api_hostname}
+KVM_WEB_UI_URL=${kvm_web_ui_url}
+
+# Application Environment
+NODE_ENV=production
+PYTHONPATH=/app/backend
+UV_CACHE_DIR=/app/.uv-cache
+
+# Serial Device Configuration
+SERIAL_DEVICE=/dev/ttyUSB0
+ADDITIONAL_SERIAL_DEVICE=/dev/ttyUSB1
+
+# KVM Port Friendly Names Configuration
+KVM_PORT_1_NAME=Web-Server
+KVM_PORT_2_NAME=Database-Server
+KVM_PORT_3_NAME=Application-Server
+KVM_PORT_4_NAME=Development-Machine
+KVM_PORT_5_NAME=Testing-Server
+KVM_PORT_6_NAME=Backup-Server
+KVM_PORT_7_NAME=Monitoring-Server
+KVM_PORT_8_NAME=File-Server
+KVM_PORT_9_NAME=Mail-Server
+KVM_PORT_10_NAME=DNS-Server
+KVM_PORT_11_NAME=DHCP-Server
+KVM_PORT_12_NAME=Firewall
+KVM_PORT_13_NAME=Router
+KVM_PORT_14_NAME=Switch
+KVM_PORT_15_NAME=Workstation-1
+KVM_PORT_16_NAME=Workstation-2
+
+# Additional KVM Configuration
+KVM_MAX_PORTS=16
+KVM_AUTO_SWITCH_ENABLED=false
+KVM_AUTO_SWITCH_TIMEOUT=30
+EOF
+    fi
+    
+    echo -e "${GREEN}✅ Configuration saved to .env${NC}"
+}
+
+# Function for preset configurations
+preset_configuration() {
+    echo -e "\n${BLUE}🎨 Preset URL Configurations${NC}"
+    echo -e "${BLUE}============================${NC}"
+    echo
+    echo "1. 🏠 Local Development (localhost)"
+    echo "2. 🌐 Production with Custom Domain"
+    echo "3. 🔒 Production with HTTPS"
+    echo "4. ☁️  Cloud Deployment (example)"
+    echo "5. ⚙️  Custom Configuration"
+    echo
+    
+    read -p "Choose a preset (1-5): " preset_choice
+    
+    case $preset_choice in
+        1) # Local Development
+            api_hostname="http://localhost:8081/api"
+            kvm_ui_url=""
+            ;;
+        2) # Production HTTP
+            echo
+            read -p "Enter your domain (e.g., yourdomain.com): " domain
+            if [ -z "$domain" ]; then
+                echo -e "${RED}❌ Domain is required${NC}"
+                return 1
+            fi
+            api_hostname="http://${domain}/api"
+            kvm_ui_url="http://kvm-ui.${domain}/"
+            ;;
+        3) # Production HTTPS
+            echo
+            read -p "Enter your domain (e.g., yourdomain.com): " domain
+            if [ -z "$domain" ]; then
+                echo -e "${RED}❌ Domain is required${NC}"
+                return 1
+            fi
+            api_hostname="https://${domain}/api"
+            kvm_ui_url="https://kvm-ui.${domain}/"
+            ;;
+        4) # Cloud Example
+            api_hostname="https://kvm-api.example.com/api"
+            kvm_ui_url="https://kvm-ui.example.com/"
+            echo -e "${YELLOW}⚠️  This is an example configuration. Update the domains!${NC}"
+            ;;
+        5) # Custom
+            configure_urls
+            return $?
+            ;;
+        *)
+            echo -e "${RED}❌ Invalid choice${NC}"
+            return 1
+            ;;
+    esac
+    
+    # Show configuration and confirm
+    echo
+    echo -e "${YELLOW}📋 Preset Configuration:${NC}"
+    echo -e "  API Hostname: ${GREEN}${api_hostname}${NC}"
+    echo -e "  KVM UI URL:   ${GREEN}${kvm_ui_url:-"(not set)"}${NC}"
+    echo
+    
+    read -p "Apply this configuration? (Y/n): " confirm
+    
+    if [[ ! "$confirm" =~ ^[Nn]$ ]]; then
+        save_configuration "$api_hostname" "$kvm_ui_url"
+        return 0
+    else
+        echo -e "${YELLOW}❌ Configuration not applied${NC}"
+        return 1
+    fi
+}
+
+# Function to test URLs
+test_urls() {
+    echo -e "\n${BLUE}🧪 Testing URL Configuration${NC}"
+    echo -e "${BLUE}===========================${NC}"
+    
+    if [ ! -f ".env" ]; then
+        echo -e "${RED}❌ No .env file found${NC}"
+        return 1
+    fi
+    
+    api_hostname=$(grep "^API_HOSTNAME=" .env | cut -d'=' -f2)
+    kvm_ui_url=$(grep "^KVM_UI_URL=" .env | cut -d'=' -f2)
+    
+    if [ -n "$api_hostname" ]; then
+        echo -e "\n${CYAN}Testing API Hostname: ${api_hostname}${NC}"
+        if curl -s --connect-timeout 5 "${api_hostname}/health" >/dev/null 2>&1; then
+            echo -e "${GREEN}✅ API endpoint is reachable${NC}"
+        else
+            echo -e "${YELLOW}⚠️  API endpoint is not reachable (this is normal if not deployed yet)${NC}"
+        fi
+    fi
+    
+    if [ -n "$kvm_ui_url" ]; then
+        echo -e "\n${CYAN}Testing KVM UI URL: ${kvm_ui_url}${NC}"
+        if curl -s --connect-timeout 5 "$kvm_ui_url" >/dev/null 2>&1; then
+            echo -e "${GREEN}✅ KVM UI is reachable${NC}"
+        else
+            echo -e "${YELLOW}⚠️  KVM UI is not reachable (this is normal if not deployed yet)${NC}"
+        fi
+    fi
+}
+
+# Function to apply and deploy
+apply_deploy() {
+    echo -e "\n${BLUE}🚀 Apply Configuration & Deploy${NC}"
+    echo -e "${BLUE}===============================${NC}"
+    
+    if [ ! -f ".env" ]; then
+        echo -e "${RED}❌ No .env file found. Please configure URLs first.${NC}"
+        return 1
+    fi
+    
+    echo -e "\n${YELLOW}This will restart the KVM Manager with new URL configuration.${NC}"
+    read -p "Continue? (y/N): " confirm
+    
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        echo -e "\n${BLUE}🔄 Restarting KVM Manager...${NC}"
+        
+        # Stop current deployment
+        if command -v docker compose >/dev/null 2>&1; then
+            docker compose down 2>/dev/null || true
+        elif command -v docker-compose >/dev/null 2>&1; then
+            docker-compose down 2>/dev/null || true
+        fi
+        
+        # Deploy with new configuration
+        if [ -f "deploy.sh" ]; then
+            ./deploy.sh
+        else
+            echo -e "${YELLOW}⚠️  deploy.sh not found. Please run deployment manually.${NC}"
+        fi
+    else
+        echo -e "${YELLOW}❌ Deployment cancelled${NC}"
+    fi
+}
+
+# Main menu
+main_menu() {
+    while true; do
+        echo -e "\n${BLUE}🌐 KVM Manager URL Configuration Menu${NC}"
+        echo -e "${BLUE}====================================${NC}"
+        echo
+        echo "1. 📋 Show Current Configuration"
+        echo "2. 🔧 Configure URLs Interactively"
+        echo "3. 🎨 Use Preset Configuration"
+        echo "4. 🧪 Test URL Configuration"
+        echo "5. 🚀 Apply & Deploy"
+        echo "6. ❌ Exit"
+        echo
+        
+        read -p "Choose an option (1-6): " choice
+        
+        case $choice in
+            1) show_current_config ;;
+            2) configure_urls ;;
+            3) preset_configuration ;;
+            4) test_urls ;;
+            5) apply_deploy ;;
+            6) 
+                echo -e "${GREEN}👋 URL configuration complete!${NC}"
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}❌ Invalid option. Please try again.${NC}"
+                ;;
+        esac
+    done
+}
+
+# Initialize
+echo -e "${GREEN}Welcome to the KVM Manager URL Configuration Tool!${NC}"
+echo -e "This tool helps you configure API and UI URLs for your deployment."
+
+# Check if .env exists
+if [ ! -f ".env" ]; then
+    echo -e "\n${YELLOW}📝 No .env file found. Would you like to create one?${NC}"
+    read -p "Create .env file with default configuration? (Y/n): " create_env
+    
+    if [[ ! "$create_env" =~ ^[Nn]$ ]]; then
+        save_configuration "http://localhost:8081/api" ""
+    fi
+fi
+
+main_menu
